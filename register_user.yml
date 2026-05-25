@@ -1,3 +1,5 @@
+type: http-request
+
 info:
   name: register_user
   type: http
