@@ -1,3 +1,4 @@
+type: env
 name: Czechibank_Register
 variables:
   - name: baseUrl
