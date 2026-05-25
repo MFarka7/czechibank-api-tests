@@ -1,0 +1,61 @@
+info:
+  name: register_user
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}user/create"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{generatedEmail}}",
+        "name": "{{$randomFullName}}",
+        "password": "{{$randomPassword}}"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const timestamp = Date.now();
+        const email = `manka_34+${timestamp}@seznam.cz`;
+        bru.setEnvVar("generatedEmail", email);
+    - type: after-response
+      code: |-
+        const body = res.getBody();
+        bru.setEnvVar("registeredEmail", body.data.email);
+        console.log("Registered email uložen:", body.data.email);
+    - type: tests
+      code: |-
+        const body = res.getBody();
+
+        test("Status code is 201", function() {
+          expect(res.getStatus()).to.equal(201);
+        });
+
+        test("Response has success true", function() {
+          expect(body.success).to.equal(true);
+        });
+
+        test("Email in response matches sent email (lowercase check)", function() {
+          const email = body.data.email.toLowerCase();
+          expect(email).to.contain("manka_34+");
+          expect(email).to.contain("@seznam.cz");
+        });
+
+        test("Response contains user ID", function() {
+          expect(body.data.id).to.be.a("string");
+        });
+
+        test("Response contains API key", function() {
+          expect(body.data.apiKey).to.be.a("string");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

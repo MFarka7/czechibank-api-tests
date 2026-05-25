@@ -1,0 +1,73 @@
+name: Czechibank API Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * *'
+
+jobs:
+  api-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Bruno CLI
+        run: npm install -g @usebruno/cli
+
+      - name: Run Bruno collection and extract email
+        run: |
+          output=$(bru run --env Czechibank_Register 2>&1)
+          echo "$output"
+          EMAIL=$(echo "$output" | grep "Registered email" | sed 's/.*: //')
+          echo "REGISTERED_EMAIL=$EMAIL" >> $GITHUB_ENV
+          echo "Extracted email: $EMAIL"
+
+      - name: Install pg and verify user in DB
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REGISTERED_EMAIL: ${{ env.REGISTERED_EMAIL }}
+        run: |
+          npm install pg
+          node -e "
+          const { Client } = require('pg');
+
+          async function verifyUser() {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+
+            try {
+              await client.connect();
+              console.log('Connected to database');
+
+              const email = process.env.REGISTERED_EMAIL;
+              console.log('Looking for email:', email);
+
+              const result = await client.query(
+                'SELECT \"name\", email, \"createdAt\", \"role\" FROM public.\"user\" WHERE email = LOWER(\$1)',
+                [email]
+              );
+
+              if (result.rows.length === 0) {
+                console.error('ERROR: User not found in database!');
+                process.exit(1);
+              }
+
+              console.log('User found in database:');
+              console.log(JSON.stringify(result.rows[0], null, 2));
+            } catch (err) {
+              console.error('Database error:', err.message);
+              process.exit(1);
+            } finally {
+              await client.end();
+              console.log('Database connection closed');
+            }
+          }
+
+          verifyUser();
+          "

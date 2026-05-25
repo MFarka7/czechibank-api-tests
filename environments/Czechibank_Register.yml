@@ -1,0 +1,4 @@
+name: Czechibank_Register
+variables:
+  - name: baseUrl
+    value: https://da.czechibank.ostrava.digital/api/v1/
